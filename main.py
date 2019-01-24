@@ -93,7 +93,7 @@ def loop_job():
         yesterday=datetime.datetime.now()-datetime.timedelta(days=1)
         yesterday=yesterday.strftime("%Y-%m-%d")
         
-        
+        allNews=[]
         #Add yesterday to the base
         for tick in allTickers:
             site = "https://finance.yahoo.com/quote/"+tick+"?p="+tick
@@ -108,6 +108,11 @@ def loop_job():
             #cur.execute("insert into priceTab values (?, ?, ?)",(yesterday , tick , lastClose))
             #conn.commit()
             #conn.close
+
+            newsTable = soup.find('ul', {'class':'Mb(0) Ov(h) P(0) Wow(bw)'})
+
+            for row in newsTable.findAll('p'):
+                allNews.append(str(row.string.strip()))
         
         invDate=priceHist['date'].unique()
         invDate.sort()
@@ -166,8 +171,33 @@ def loop_job():
         weekM=datetime.datetime.now()-datetime.timedelta(days=7)
         weekM=weekM.strftime("%Y-%m-%d")
         
-        monthM=datetime.datetime.now()-datetime.timedelta(days=30)
-        monthM=monthM.strftime("%Y-%m-%d")
+        #monthM=datetime.datetime.now()-datetime.timedelta(days=30)
+        #monthM=monthM.strftime("%Y-%m-%d")
+        startYear=datetime.datetime.now().strftime("%Y")+"-01-01"
+        
+        deltALast=sumFundVal[len(invDate)-1]-sumFundVal[len(invDate)-2]
+        deltRLast=sumFundVal[len(invDate)-1]/sumFundVal[len(invDate)-2]-1
+        d={' ':['last'],'Delta abs':[round(deltALast,2)],'Delta %':[str(round(deltRLast*100,2))+"%"]}
+        perfTab=pd.DataFrame(data=d)
+        
+        if weekM>=startDate:
+            weekIndex=invDate>=weekM
+            weekVal=sumFundVal[weekIndex]
+            deltALast=sumFundVal[len(invDate)-1]-weekVal[0]
+            deltRLast=sumFundVal[len(invDate)-1]/weekVal[0]-1
+            perfTab.loc[len(perfTab)] = ['week',round(deltALast,2),str(round(deltRLast*100,2))+"%"]
+        
+        if startYear>=startDate:
+            ytdIndex=invDate>=startYear
+            ytdVal=sumFundVal[ytdIndex]
+            deltALast=sumFundVal[len(invDate)-1]-ytdVal[0]
+            deltRLast=sumFundVal[len(invDate)-1]/ytdVal[0]-1
+            perfTab.loc[len(perfTab)] = ['YtD',round(deltALast,2),str(round(deltRLast*100,2))+"%"]
+            
+        deltALast=sumFundVal[len(invDate)-1]-reportFundValue[0]
+        deltRLast=sumFundVal[len(invDate)-1]/reportFundValue[0]-1
+                             
+        perfTab.loc[len(perfTab)] = ['Inception',round(deltALast,2),str(round(deltRLast*100,2))+"%"]
         
         compReport=np.zeros((len(allTickers),4))
         compReport[:,0]=fundComp[len(invDate)-1]
@@ -188,7 +218,10 @@ def loop_job():
         
         fig.savefig('reports/img1.jpg', facecolor='#414141', edgecolor='#414141')
         
-    
+        """Change format for the news"""
+        allNewsD={'News':allNews}
+        allNewsDF=pd.DataFrame(data=allNewsD)
+        
         """write in the template"""
         from jinja2 import Environment, FileSystemLoader
         env = Environment(loader=FileSystemLoader('.'))
@@ -196,7 +229,9 @@ def loop_job():
         template_vars = {"date" : today,
                      "fundVal": FundValLast,
                      "fundPmv": FundPmvLast,
-                     "tab": tabReport.to_html()}
+                     "FundHist":perfTab.to_html(),
+                     "Stocks":tabReport.to_html(),
+                     "News":allNewsDF.to_html()}
         html_out = template.render(template_vars)
         
         """send the mail"""
