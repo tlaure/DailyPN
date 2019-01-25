@@ -93,7 +93,8 @@ def loop_job():
         yesterday=datetime.datetime.now()-datetime.timedelta(days=1)
         yesterday=yesterday.strftime("%Y-%m-%d")
         
-        allNews=[]
+        newsIn={'ticker':[],'news':[]}
+        allNews=pd.DataFrame(data=newsIn)
         #Add yesterday to the base
         for tick in allTickers:
             site = "https://finance.yahoo.com/quote/"+tick+"?p="+tick
@@ -108,12 +109,12 @@ def loop_job():
             #cur.execute("insert into priceTab values (?, ?, ?)",(yesterday , tick , lastClose))
             #conn.commit()
             #conn.close
-
             newsTable = soup.find('ul', {'class':'Mb(0) Ov(h) P(0) Wow(bw)'})
 
             for row in newsTable.findAll('p'):
-                allNews.append(str(row.string.strip()))
-        
+                #allNews.append(str(row.string.strip()))
+                allNews.loc[len(allNews)] = [tick,str(row.string.strip())]
+
         invDate=priceHist['date'].unique()
         invDate.sort()
         
@@ -218,10 +219,9 @@ def loop_job():
         
         fig.savefig('reports/img1.jpg', facecolor='#414141', edgecolor='#414141')
         
-        """Change format for the news"""
-        allNewsD={'News':allNews}
-        allNewsDF=pd.DataFrame(data=allNewsD)
-        
+
+        pd.options.display.max_colwidth = 500 #CHoose the max number of characters displayed in the dataframes (for the news)
+         
         """write in the template"""
         from jinja2 import Environment, FileSystemLoader
         env = Environment(loader=FileSystemLoader('.'))
@@ -231,7 +231,7 @@ def loop_job():
                      "fundPmv": FundPmvLast,
                      "FundHist":perfTab.to_html(),
                      "Stocks":tabReport.to_html(),
-                     "News":allNewsDF.to_html()}
+                     "News":allNews.to_html()}
         html_out = template.render(template_vars)
         
         """send the mail"""
@@ -264,7 +264,7 @@ def loop_job():
         fp.close()
         
         # Define the image's ID as referenced above
-        msgImage.add_header('Content-ID', '<img1.jpg>')
+        msgImage.add_header('Content-ID', '<image1>')
         msg.attach(msgImage)
          
         server = smtplib.SMTP('Smtp.live.com', 587) #Depend on your mail server
